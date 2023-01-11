@@ -18,16 +18,31 @@ T MessageQueue<T>::receive()
     return msg;
 }
 
+/*
+why _queue.clear()
+At peripheral intersections, Traffic is less. As the number of changes in a traffic lights at these intersections
+is more compared to the number of vehicles approaching, there will be the accumulation of Traffic light messages in _queue.
+
+By the time a new vehicle approaches at any of these peripheral intersections, it would be receiving out 
+some older traffic light msg. 
+That's the reason it seems vehicles are crossing red at these intersections, 
+in fact, they are crossing based on some previous green signal in that _queue.
+
+But once the new traffic light msg arrives, all the older msgs are redundant. 
+So we have to clear _queue at send (as soon as new msg arrives).
+
+For central intersection, _queue clear/ no clear won't be a problem, 
+as traffic is huge there it will have enough receives to keep it empty for new msg.
+*/
 template <typename T>
 void MessageQueue<T>::send(T &&msg)
 {
     // FP.4a : The method send should use the mechanisms std::lock_guard<std::mutex> 
     // as well as _condition.notify_one() to add a new message to the queue and afterwards send a notification.
   	std::lock_guard<std::mutex> lck(_mutex);	// acquire the lock
-  	
-  	// do work
-  	_queue.push_back(std::move(msg));
-  	
+ 	// do work
+    _queue.clear();
+  	_queue.emplace_back(msg);   // using emplace_back(msg) equivalent to push_back(std::move(msg))
   	_cv.notify_one();	// notify a single thread that an item in queue is now available
 }
 
@@ -44,7 +59,7 @@ void TrafficLight::waitForGreen()
     // runs and repeatedly calls the receive function on the message queue. 
     // Once it receives TrafficLightPhase::green, the method returns.
     while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(500));
         if (_queue.receive() == TrafficLightPhase::green)
             return;
     }
